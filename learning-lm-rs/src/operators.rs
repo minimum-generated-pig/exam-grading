@@ -70,10 +70,34 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
     }
 }
 
+// rms_norm 函数
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+    let num_rows = x.shape()[0]; // 获取行数
+    let num_cols = x.shape()[1]; // 获取列数
+
+    let x_data = x.data();
+    let w_data = w.data();
+    let y_data = unsafe { y.data_mut() };
+
+    for row in 0..num_rows {
+        let start_index = row * num_cols;
+        let end_index = start_index + num_cols;
+
+        let sum_of_squares: f32 = x_data[start_index..end_index]   // 计算当前行的平方和
+            .iter()
+            .map(|&value| value * value)
+            .sum();
+
+        let rms = (sum_of_squares / num_cols as f32 + epsilon).sqrt();   // 计算当前行的 RMS
+
+        for col in 0..num_cols {
+            let index = start_index + col;
+            y_data[index] = w_data[col] * x_data[index] / rms;   // 归一化并应用权重
+        }
+    }
 }
 
+// swiglu 函数
 // y = silu(x) * y
 // hint: this is an element-wise operation
 pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
@@ -92,10 +116,40 @@ pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
     }
 }
 
+// matmul_transb 函数
 // C = beta * C + alpha * A @ B^T
 // hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+    let a_rows = a.shape()[0];
+    let a_cols = a.shape()[1];
+    let b_rows = b.shape()[0];
+    let b_cols = b.shape()[1];
+    let c_rows = c.shape()[0];
+    let c_cols = c.shape()[1];
+
+    let a_data = a.data();
+    let b_data = b.data();
+    let c_data = unsafe { c.data_mut() };
+
+    assert_eq!(
+        a_cols, b_cols,
+        "A's columns must match B's columns (B's transposed row count)"   //确保 B 的形状是 (n, k) 并在操作中被视为 (k, n)
+    ); 
+    assert_eq!(c_rows, a_rows, "C's rows must match A's rows");
+    assert_eq!(
+        c_cols, b_rows,
+        "C's columns must match B's rows (B's transposed column count)"
+    );
+
+    for i in 0..a_rows {
+        for j in 0..b_rows {
+            let mut sum = 0.0;
+            for k in 0..a_cols {
+                sum += a_data[i * a_cols + k] * b_data[j * b_cols + k];   // 计算 A 的第 i 行与 B 的第 j 列的内积
+            }
+            c_data[i * c_cols + j] = beta * c_data[i * c_cols + j] + alpha * sum;
+        }
+    }
 }
 
 // Dot product of two tensors (treated as vectors)
